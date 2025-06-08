@@ -1,0 +1,5 @@
+# Ignore API metadata files
+ci.json
+dir.json
+graph.xml
+graph-beta.xml

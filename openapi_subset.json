@@ -1,0 +1,29 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/v1/inboundSamlSsoProfiles/{samlProfileId}/idpCredentials:add": {
+      "post": {
+        "description": "Add an IdP certificate",
+        "externalDocs": {"url": "https://cloud.google.com/identity/docs/reference/rest/v1/inboundSamlSsoProfiles.idpCredentials/add"}
+      }
+    },
+    "/v1/inboundSamlSsoProfiles": {
+      "post": {
+        "description": "Create an inbound SAML profile",
+        "externalDocs": {"url": "https://cloud.google.com/identity/docs/reference/rest/v1/inboundSamlSsoProfiles/create"}
+      }
+    },
+    "/v1/inboundSsoAssignments": {
+      "post": {
+        "description": "Assign SSO profile to org unit",
+        "externalDocs": {"url": "https://cloud.google.com/identity/docs/reference/rest/v1/inboundSsoAssignments/create"}
+      }
+    },
+    "/v1.0/applicationTemplates/{applicationTemplate-id}/instantiate": {
+      "post": {
+        "description": "Instantiate gallery app",
+        "externalDocs": {"url": "https://learn.microsoft.com/graph/api/applicationtemplate-instantiate"}
+      }
+    }
+  }
+}
