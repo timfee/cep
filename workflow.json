@@ -1,0 +1,585 @@
+{
+  "version": "3.0",
+  "description": "Fully API-driven, idempotent workflow for federating Google Cloud with Microsoft Entra ID. GA endpoints wherever possible; beta/preview flagged. Every step starts with a READ pre-check so repeated runs are safe.",
+  "steps": [
+    {
+      "id": "D-1",
+      "name": "Verify custom domain in Google",
+      "variables_required": [
+        "customerId",
+        "domainName",
+        "googleAccessToken"
+      ],
+      "permissions_required": [
+        "admin.directory.domain",
+        "siteverification"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": true,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/admin/directory/v1/customer/{customerId}/domains/{domainName}"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/admin/directory/v1/customer/{customerId}/domains",
+          "payload": {
+            "domainName": "{domainName}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "G-4b",
+      "name": "Add IdP certificate",
+      "variables_required": [
+        "samlProfileId",
+        "pemData",
+        "googleAccessToken"
+      ],
+      "permissions_required": [
+        "cloud-identity.inboundsso"
+      ],
+      "depends_on": [
+        "G-4"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": false,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/v1/inboundSamlSsoProfiles/{samlProfileId}/idpCredentials"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/v1/inboundSamlSsoProfiles/{samlProfileId}/idpCredentials:add",
+          "payload": {
+            "pemData": "{pemData}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "G-1",
+      "name": "Create OU /Automation",
+      "variables_required": [
+        "customerId",
+        "googleAccessToken"
+      ],
+      "permissions_required": [
+        "admin.directory.orgunit"
+      ],
+      "depends_on": [
+        "D-1"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": false,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/admin/directory/v1/customer/{customerId}/orgunits?orgUnitPath=/Automation&type=children"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/admin/directory/v1/customer/{customerId}/orgunits",
+          "payload": {
+            "name": "Automation",
+            "parentOrgUnitPath": "/"
+          }
+        }
+      ]
+    },
+    {
+      "id": "G-2",
+      "name": "Create service user",
+      "variables_populated": [
+        "provisioningUserId",
+        "provisioningUserEmail",
+        "provisioningUserPassword"
+      ],
+      "variables_required": [
+        "primaryDomain",
+        "googleAccessToken"
+      ],
+      "permissions_required": [
+        "admin.directory.user"
+      ],
+      "depends_on": [
+        "G-1"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": true,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/admin/directory/v1/users/azuread-provisioning@{primaryDomain}"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/admin/directory/v1/users",
+          "payload": {
+            "name": {
+              "givenName": "Microsoft Entra ID",
+              "familyName": "Provisioning"
+            },
+            "password": "{generatedPassword}",
+            "primaryEmail": "azuread-provisioning@{primaryDomain}",
+            "orgUnitPath": "/Automation"
+          }
+        }
+      ]
+    },
+    {
+      "id": "G-3",
+      "name": "Create custom admin role",
+      "variables_populated": [
+        "adminRoleId"
+      ],
+      "variables_required": [
+        "customerId",
+        "googleAccessToken"
+      ],
+      "permissions_required": [
+        "admin.directory.rolemanagement"
+      ],
+      "depends_on": [
+        "G-2"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": true,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/admin/directory/v1/customer/{customerId}/roles"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/admin/directory/v1/customer/{customerId}/roles",
+          "payload": {
+            "roleName": "Microsoft Entra Provisioning",
+            "privilegeIds": [
+              "ORGANIZATION_UNITS_READ",
+              "USERS_ALL",
+              "GROUPS_ALL"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "G-3b",
+      "name": "Assign role to service user",
+      "variables_required": [
+        "adminRoleId",
+        "provisioningUserId",
+        "customerId",
+        "googleAccessToken"
+      ],
+      "permissions_required": [
+        "admin.directory.rolemanagement"
+      ],
+      "depends_on": [
+        "G-3"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": false,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/admin/directory/v1/customer/{customerId}/roleassignments?roleId={adminRoleId}&assignedTo={provisioningUserId}"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/admin/directory/v1/customer/{customerId}/roleassignments",
+          "payload": {
+            "roleId": "{adminRoleId}",
+            "assignedTo": "{provisioningUserId}",
+            "scopeType": "CUSTOMER"
+          }
+        }
+      ]
+    },
+    {
+      "id": "G-4",
+      "name": "Create inbound SAML profile",
+      "variables_populated": [
+        "samlProfileId",
+        "entityId",
+        "acsUrl"
+      ],
+      "variables_required": [
+        "customerId",
+        "googleAccessToken"
+      ],
+      "permissions_required": [
+        "cloud-identity.samlssoprofiles"
+      ],
+      "depends_on": [
+        "G-3b"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": true,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/v1/inboundSamlSsoProfiles?filter=displayName=Azure%20AD"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/v1/inboundSamlSsoProfiles",
+          "payload": {
+            "displayName": "Azure AD",
+            "customer": "customers/{customerId}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A-1",
+      "name": "Instantiate provisioning gallery app",
+      "variables_populated": [
+        "provServicePrincipalId"
+      ],
+      "variables_required": [
+        "provTemplateId",
+        "azureAccessToken"
+      ],
+      "permissions_required": [
+        "Application.ReadWrite.All"
+      ],
+      "depends_on": [
+        "G-3b"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": false,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/v1.0/servicePrincipals?$filter=displayName eq 'Google Cloud (Provisioning)'"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/v1.0/applicationTemplates/{provTemplateId}/instantiate",
+          "payload": {
+            "displayName": "Google Cloud (Provisioning)"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A-2",
+      "name": "Configure provisioning creds",
+      "variables_required": [
+        "provServicePrincipalId",
+        "provisioningUserEmail",
+        "provisioningUserPassword",
+        "azureAccessToken"
+      ],
+      "permissions_required": [
+        "Application.ReadWrite.All"
+      ],
+      "depends_on": [
+        "A-1"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": false,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/v1.0/servicePrincipals/{provServicePrincipalId}/synchronization"
+        }
+      ],
+      "execute": [
+        {
+          "method": "PATCH",
+          "path": "/v1.0/servicePrincipals/{provServicePrincipalId}/synchronization",
+          "payload": {
+            "credentials": {
+              "fields": [
+                {
+                  "name": "Username",
+                  "value": "{provisioningUserEmail}"
+                },
+                {
+                  "name": "Password",
+                  "value": "{provisioningUserPassword}"
+                }
+              ]
+            },
+            "schedule": {
+              "interval": "PT40M"
+            },
+            "templateId": "sync-schema-v2"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A-2b",
+      "name": "Start provisioning sync",
+      "variables_required": [
+        "provServicePrincipalId",
+        "syncJobId",
+        "azureAccessToken"
+      ],
+      "permissions_required": [
+        "Application.ReadWrite.All"
+      ],
+      "depends_on": [
+        "A-2"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": false,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/v1.0/servicePrincipals/{provServicePrincipalId}/synchronization/jobs/{syncJobId}"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/v1.0/servicePrincipals/{provServicePrincipalId}/synchronization/jobs/{syncJobId}/start"
+        }
+      ]
+    },
+    {
+      "id": "A-3",
+      "name": "Instantiate SSO gallery app",
+      "variables_populated": [
+        "ssoServicePrincipalId"
+      ],
+      "variables_required": [
+        "ssoTemplateId",
+        "azureAccessToken"
+      ],
+      "permissions_required": [
+        "Application.ReadWrite.All"
+      ],
+      "depends_on": [
+        "G-4"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": false,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/v1.0/servicePrincipals?$filter=displayName eq 'Google Cloud'"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/v1.0/applicationTemplates/{ssoTemplateId}/instantiate",
+          "payload": {
+            "displayName": "Google Cloud"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A-4",
+      "name": "Configure basic SAML settings",
+      "variables_required": [
+        "ssoServicePrincipalId",
+        "entityId",
+        "acsUrl",
+        "azureAccessToken"
+      ],
+      "permissions_required": [
+        "Application.ReadWrite.All"
+      ],
+      "depends_on": [
+        "A-3"
+      ],
+      "apiStatus": "beta",
+      "verifiedByCodex": false,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/beta/servicePrincipals/{ssoServicePrincipalId}/samlSingleSignOnSettings"
+        }
+      ],
+      "execute": [
+        {
+          "method": "PATCH",
+          "path": "/beta/servicePrincipals/{ssoServicePrincipalId}/samlSingleSignOnSettings",
+          "payload": {
+            "identifierUris": [
+              "{entityId}"
+            ],
+            "replyUrls": [
+              "{acsUrl}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "A-4b",
+      "name": "Add claims mapping policy",
+      "variables_populated": [
+        "claimsPolicyId"
+      ],
+      "variables_required": [
+        "azureAccessToken"
+      ],
+      "permissions_required": [
+        "Policy.ReadWrite.ApplicationConfiguration"
+      ],
+      "depends_on": [
+        "A-4"
+      ],
+      "apiStatus": "beta",
+      "verifiedByCodex": false,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/beta/servicePrincipals/{ssoServicePrincipalId}/tokenIssuancePolicies"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/beta/policies/tokenIssuancePolicies",
+          "payload": {
+            "definition": [
+              "{\"claimsMapping\":{...}}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "A-4c",
+      "name": "Link policy to SP",
+      "variables_required": [
+        "ssoServicePrincipalId",
+        "claimsPolicyId",
+        "azureAccessToken"
+      ],
+      "permissions_required": [
+        "Policy.ReadWrite.ApplicationConfiguration"
+      ],
+      "depends_on": [
+        "A-4b"
+      ],
+      "apiStatus": "beta",
+      "verifiedByCodex": false,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/beta/servicePrincipals/{ssoServicePrincipalId}/tokenIssuancePolicies"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/beta/servicePrincipals/{ssoServicePrincipalId}/tokenIssuancePolicies/$ref",
+          "payload": {
+            "@odata.id": "https://graph.microsoft.com/beta/policies/tokenIssuancePolicies/{claimsPolicyId}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A-5",
+      "name": "Assign users/groups to SSO app",
+      "variables_required": [
+        "ssoServicePrincipalId",
+        "principalId",
+        "azureAccessToken"
+      ],
+      "permissions_required": [
+        "AppRoleAssignment.ReadWrite.All"
+      ],
+      "depends_on": [
+        "A-4c"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": false,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/v1.0/servicePrincipals/{ssoServicePrincipalId}/appRoleAssignedTo?$filter=principalId eq {principalId}"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/v1.0/servicePrincipals/{ssoServicePrincipalId}/appRoleAssignedTo",
+          "payload": {
+            "principalId": "{principalId}",
+            "resourceId": "{ssoServicePrincipalId}",
+            "appRoleId": "00000000-0000-0000-0000-000000000000"
+          }
+        }
+      ]
+    },
+    {
+      "id": "G-5b",
+      "name": "Assign SAML profile to org",
+      "variables_required": [
+        "samlProfileId",
+        "googleAccessToken"
+      ],
+      "permissions_required": [
+        "cloud-identity.samlssoprofiles"
+      ],
+      "depends_on": [
+        "A-5"
+      ],
+      "apiStatus": "GA",
+      "verifiedByCodex": true,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "/v1/inboundSsoAssignments"
+        }
+      ],
+      "execute": [
+        {
+          "method": "POST",
+          "path": "/v1/inboundSsoAssignments",
+          "payload": {
+            "samlSsoProfile": "{samlProfileId}",
+            "targetOrgUnit": "/",
+            "ssoMode": "SAML_SSO"
+          }
+        }
+      ]
+    },
+    {
+      "id": "T-1",
+      "name": "Trigger SSO test",
+      "manual": true,
+      "depends_on": [
+        "G-5b"
+      ],
+      "verifiedByCodex": true,
+      "verify": [
+        {
+          "method": "GET",
+          "path": "https://console.cloud.google.com?authuser=test"
+        }
+      ]
+    }
+  ]
+}

@@ -4,7 +4,7 @@
 
 | Principle           | How it’s expressed in the JSON                                                                                                                 |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Idempotent**      | Every step begins with a **`precheck`** (a GET) that proves the resource is already in the desired state; if so, the mutating call is skipped. |
+| **Idempotent**      | Every step begins with a **`verify`** call (a GET) that proves the resource is already in the desired state; if so, the mutating call is skipped. |
 | **Least privilege** | Each step lists **`permissions_required`**—the minimal OAuth scopes / IAM roles that grant the call.                                           |
 | **API only**        | Every console action is mapped to a REST endpoint; GA if available, **`apiStatus\": \"beta\"`** or **`\"preview\"`** if not.                   |
 | **Sequenced**       | **`depends_on`** arrays impose the same ordering constraints described in the Google article (plus one extra gate: domain verification first). |
@@ -18,6 +18,8 @@
 4. **Azure SSO app** – instantiate second gallery app, patch SAML settings, add claims, assign users/groups.
 5. **Google profile assignment** – preview API to bind the SAML profile to the organization root.
 6. **Manual test** – final browser redirect; no API exists to emulate it.
+
+The repository includes `openapi_subset.json`, extracted from official Google Discovery documents and Microsoft Graph OpenAPI. It lists only the methods referenced in `workflow.json`.
 
 ---
 
